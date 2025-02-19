@@ -1,0 +1,26 @@
+[project]
+name = "stereo-predictor"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "deepchem>=2.8.0",
+    "jax[cuda12]>=0.5.0",
+    "lightning>=2.5.0.post0",
+    "numpy>=2.2.3",
+    "pydantic>=2.10.6",
+    "rdkit>=2024.9.5",
+    "scikit-learn>=1.6.1",
+    "torch>=2.6.0",
+    "torch-geometric>=2.6.1",
+    "tqdm>=4.67.1",
+    "transformers>=4.49.0",
+    "wandb>=0.19.6",
+]
+
+[dependency-groups]
+dev = ["mypy>=1.15.0", "ruff>=0.9.6"]
+
+[tool.mypy]
+ignore_missing_imports = true
