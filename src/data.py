@@ -65,13 +65,15 @@ class MoleculeDataset(Dataset):
         edge_features_tensor = torch.tensor(np.array(edge_features), dtype=torch.float)
 
         labels = self.get_chiral_centers(mol)
-        y = torch.tensor(labels, dtype=torch.long)
+        chiral_indices = torch.tensor([idx for idx, _ in labels], dtype=torch.long)
+        chiral_labels = torch.tensor([label for _, label in labels], dtype=torch.long)
 
         return Data(
             x=atom_features_tensor,
             edge_index=edge_index,
             edge_attr=edge_features_tensor,
-            y=y,
+            y=chiral_labels,
+            chiral_indices=chiral_indices,
         )
 
     def __len__(self):

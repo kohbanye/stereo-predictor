@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ModelConfig(BaseModel):
     hidden_channels: int = 64
     num_layers: int = 3
+    dropout: float = 0.2
 
 
 class TrainingConfig(BaseModel):

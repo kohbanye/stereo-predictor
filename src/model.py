@@ -1,4 +1,5 @@
 from typing import cast
+
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
@@ -20,11 +21,14 @@ class ChiralityGAT(pl.LightningModule):
         self.save_hyperparameters()
         self.learning_rate = learning_rate
         self.num_layers = num_layers
+        self.dropout = dropout
         self.convs = torch.nn.ModuleList()
 
         # First GAT layer
         self.convs.append(
-            GATConv(num_node_features, hidden_channels, heads=heads, dropout=dropout),
+            GATConv(
+                num_node_features, hidden_channels, heads=heads, dropout=self.dropout
+            ),
         )
 
         # Hidden GAT layers
@@ -34,33 +38,34 @@ class ChiralityGAT(pl.LightningModule):
                     hidden_channels * heads,
                     hidden_channels,
                     heads=heads,
-                    dropout=dropout,
+                    dropout=self.dropout,
                 ),
             )
 
         # Last GAT layer
         self.convs.append(
-            GATConv(hidden_channels * heads, hidden_channels, heads=1, dropout=dropout),
+            GATConv(
+                hidden_channels * heads, hidden_channels, heads=1, dropout=self.dropout
+            ),
         )
 
         # Output layer for binary classification (R/S)
         self.classifier = torch.nn.Linear(hidden_channels, 2)
 
     def forward(self, data: Data) -> torch.Tensor:
-        x, _, edge_index, y = (
+        x, _, edge_index = (
             cast(torch.Tensor, data.x),
             data.edge_attr,
             data.edge_index,
-            cast(torch.Tensor, data.y),
         )
-        
+
         # Initial node features
-        chiral_indices = y[:, 0]
+        chiral_indices = cast(torch.Tensor, data.chiral_indices)
         for i in range(self.num_layers):
             x = self.convs[i](x, edge_index)
             if i != self.num_layers - 1:
                 x = F.elu(x)
-                x = F.dropout(x, p=0.2, training=self.training)
+                x = F.dropout(x, p=self.dropout, training=self.training)
 
         # Extract features only for chiral centers
         chiral_features = x[chiral_indices]
@@ -72,14 +77,14 @@ class ChiralityGAT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         out = self.forward(batch)
-        chiral_labels = batch.y[:, 1]
+        chiral_labels = batch.y
         loss = F.nll_loss(out, chiral_labels)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
         out = self.forward(batch)
-        chiral_labels = batch.y[:, 1]
+        chiral_labels = batch.y
         loss = F.nll_loss(out, chiral_labels)
         pred = out.argmax(dim=1)
         acc = (pred == chiral_labels).float().mean()
@@ -89,7 +94,7 @@ class ChiralityGAT(pl.LightningModule):
 
     def test_step(self, batch, batch_idx) -> torch.Tensor:
         out = self.forward(batch)
-        chiral_labels = batch.y[:, 1]
+        chiral_labels = batch.y
         loss = F.nll_loss(out, chiral_labels)
         pred = out.argmax(dim=1)
         acc = (pred == chiral_labels).float().mean()
