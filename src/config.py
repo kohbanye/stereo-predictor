@@ -13,6 +13,7 @@ class TrainingConfig(BaseModel):
     batch_size: int = 1024
     epochs: int = 100
     lr: float = 0.001
+    num_workers: int = 32
     checkpoints_dir: str = "checkpoints"
     project_name: str = "stereo-predictor"
     run_name: str | None = None

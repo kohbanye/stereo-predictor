@@ -23,6 +23,7 @@ class MoleculeDataset(Dataset):
 
     def process_sdf(self) -> list[Chem.Mol]:
         if Path(self.processed_file).exists():
+            print(f"Loading processed SDF file from {self.processed_file}")
             with torch.serialization.safe_globals([Chem.Mol]):
                 return cast(list[Chem.Mol], torch.load(self.processed_file))
 
@@ -91,7 +92,7 @@ class ChiralityDataModule(pl.LightningDataModule):
         batch_size: int = 32,
         test_size: float = 0.1,
         val_size: float = 0.1,
-        num_workers: int = 0,
+        num_workers: int = 32,
         random_state: int = 42,
     ) -> None:
         super().__init__()

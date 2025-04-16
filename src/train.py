@@ -22,6 +22,7 @@ def main() -> None:
     datamodule = ChiralityDataModule(
         sdf_file=str(config.sdf_file),
         batch_size=config.training.batch_size,
+        num_workers=config.training.num_workers,
     )
 
     # Initialize model
@@ -46,7 +47,6 @@ def main() -> None:
         log_model=True,
     )
 
-    # Initialize trainer
     trainer = pl.Trainer(
         max_epochs=config.training.epochs,
         accelerator="auto",
@@ -55,10 +55,7 @@ def main() -> None:
         logger=wandb_logger,
     )
 
-    # Train the model
     trainer.fit(model, datamodule=datamodule)
-
-    # Test the model
     trainer.test(model, datamodule=datamodule)
 
 

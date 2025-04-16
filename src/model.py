@@ -79,7 +79,7 @@ class ChiralityGAT(pl.LightningModule):
         out = self.forward(batch)
         chiral_labels = batch.y
         loss = F.nll_loss(out, chiral_labels)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, batch_size=len(chiral_labels))
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
@@ -88,8 +88,8 @@ class ChiralityGAT(pl.LightningModule):
         loss = F.nll_loss(out, chiral_labels)
         pred = out.argmax(dim=1)
         acc = (pred == chiral_labels).float().mean()
-        self.log("val_loss", loss)
-        self.log("val_acc", acc)
+        self.log("val_loss", loss, batch_size=len(chiral_labels))
+        self.log("val_acc", acc, batch_size=len(chiral_labels))
         return loss
 
     def test_step(self, batch, batch_idx) -> torch.Tensor:
@@ -98,8 +98,8 @@ class ChiralityGAT(pl.LightningModule):
         loss = F.nll_loss(out, chiral_labels)
         pred = out.argmax(dim=1)
         acc = (pred == chiral_labels).float().mean()
-        self.log("test_loss", loss)
-        self.log("test_acc", acc)
+        self.log("test_loss", loss, batch_size=len(chiral_labels))
+        self.log("test_acc", acc, batch_size=len(chiral_labels))
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
