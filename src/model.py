@@ -24,6 +24,7 @@ class ChiralityGAT(pl.LightningModule):
         self.num_layers = num_layers
         self.dropout = dropout
         self.convs = torch.nn.ModuleList()
+        self.batch_norms = torch.nn.ModuleList()
 
         # First GAT layer
         self.convs.append(
@@ -31,6 +32,7 @@ class ChiralityGAT(pl.LightningModule):
                 num_node_features, hidden_channels, heads=heads, dropout=self.dropout
             ),
         )
+        self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels * heads))
 
         # Hidden GAT layers
         for _ in range(num_layers - 2):
@@ -42,6 +44,7 @@ class ChiralityGAT(pl.LightningModule):
                     dropout=self.dropout,
                 ),
             )
+            self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels * heads))
 
         # Last GAT layer
         self.convs.append(
@@ -49,6 +52,7 @@ class ChiralityGAT(pl.LightningModule):
                 hidden_channels * heads, hidden_channels, heads=1, dropout=self.dropout
             ),
         )
+        self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels))
 
         # Output layer for binary classification (R/S)
         self.classifier = torch.nn.Sequential(
@@ -70,8 +74,6 @@ class ChiralityGAT(pl.LightningModule):
             data.edge_index,
         )
 
-        # Initial node features
-        chiral_indices = cast(torch.Tensor, data.chiral_indices)
         prev_x = None
         for i in range(self.num_layers):
             if i > 0 and prev_x is not None and prev_x.size(-1) == x.size(-1):
@@ -80,44 +82,59 @@ class ChiralityGAT(pl.LightningModule):
             prev_x = x
             # Apply GAT layer
             x = self.convs[i](x, edge_index)
+            x = self.batch_norms[i](x)
 
             if i != self.num_layers - 1:
                 x = F.elu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
 
-        # Extract features only for chiral centers
-        chiral_features = x[chiral_indices]
+        logits = self.classifier(x)
 
-        # Classification
-        x = self.classifier(chiral_features)
-
-        return F.log_softmax(x, dim=1)
+        return logits
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
-        out = self.forward(batch)
-        chiral_labels = batch.y
-        loss = F.nll_loss(out, chiral_labels)
-        self.log("train_loss", loss, batch_size=len(chiral_labels))
+        logits = self.forward(batch)
+        # Create mask for chiral centers (y != -100)
+        mask = batch.y >= 0
+        # Apply loss only on chiral centers
+        loss = F.cross_entropy(logits[mask], batch.y[mask])
+
+        # Calculate accuracy for logging
+        pred = logits[mask].argmax(dim=1)
+        acc = (pred == batch.y[mask]).float().mean()
+
+        self.log("train_loss", loss, batch_size=mask.sum())
+        self.log("train_acc", acc, batch_size=mask.sum())
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        out = self.forward(batch)
-        chiral_labels = batch.y
-        loss = F.nll_loss(out, chiral_labels)
-        pred = out.argmax(dim=1)
-        acc = (pred == chiral_labels).float().mean()
-        self.log("val_loss", loss, batch_size=len(chiral_labels))
-        self.log("val_acc", acc, batch_size=len(chiral_labels))
+        logits = self.forward(batch)
+        # Create mask for chiral centers
+        mask = batch.y >= 0
+        # Apply loss only on chiral centers
+        loss = F.cross_entropy(logits[mask], batch.y[mask])
+
+        # Calculate accuracy
+        pred = logits[mask].argmax(dim=1)
+        acc = (pred == batch.y[mask]).float().mean()
+
+        self.log("val_loss", loss, batch_size=mask.sum())
+        self.log("val_acc", acc, batch_size=mask.sum())
         return loss
 
     def test_step(self, batch, batch_idx) -> torch.Tensor:
-        out = self.forward(batch)
-        chiral_labels = batch.y
-        loss = F.nll_loss(out, chiral_labels)
-        pred = out.argmax(dim=1)
-        acc = (pred == chiral_labels).float().mean()
-        self.log("test_loss", loss, batch_size=len(chiral_labels))
-        self.log("test_acc", acc, batch_size=len(chiral_labels))
+        logits = self.forward(batch)
+        # Create mask for chiral centers
+        mask = batch.y >= 0
+        # Apply loss only on chiral centers
+        loss = F.cross_entropy(logits[mask], batch.y[mask])
+
+        # Calculate accuracy
+        pred = logits[mask].argmax(dim=1)
+        acc = (pred == batch.y[mask]).float().mean()
+
+        self.log("test_loss", loss, batch_size=mask.sum())
+        self.log("test_acc", acc, batch_size=mask.sum())
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:

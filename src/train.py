@@ -47,6 +47,7 @@ def main() -> None:
         name=config.training.run_name,
         log_model=True,
     )
+    wandb_logger.experiment.config.update(config.model_dump())
 
     trainer = pl.Trainer(
         max_epochs=config.training.epochs,

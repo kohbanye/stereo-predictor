@@ -74,9 +74,20 @@ class MoleculeDataset(Dataset):
         edge_index = torch.tensor(np.array(adj_matrix.nonzero()), dtype=torch.long)
         edge_features_tensor = torch.tensor(np.array(edge_features), dtype=torch.float)
 
-        labels = self.get_chiral_centers(mol)
-        chiral_indices = torch.tensor([idx for idx, _ in labels], dtype=torch.long)
-        chiral_labels = torch.tensor([label for _, label in labels], dtype=torch.long)
+        chiral_centers = self.get_chiral_centers(mol)
+
+        # Create node-level labels with masking
+        num_atoms = mol.GetNumAtoms()
+        chiral_labels = torch.full(
+            (num_atoms,), -100, dtype=torch.long
+        )  # Default to ignore_index (-100)
+
+        for idx, chirality in chiral_centers:
+            chiral_labels[idx] = chirality
+
+        chiral_indices = torch.tensor(
+            [idx for idx, _ in chiral_centers], dtype=torch.long
+        )
 
         return Data(
             x=atom_features_tensor,
