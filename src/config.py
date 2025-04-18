@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ModelConfig(BaseModel):
     hidden_channels: int = 64
+    heads: int = 4
     num_layers: int = 3
     classifier_hidden_dim: int = 128
     dropout: float = 0.2

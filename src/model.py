@@ -6,65 +6,75 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.nn import GATConv
 
+from src.config import ModelConfig, TrainingConfig
+
 
 class ChiralityGAT(pl.LightningModule):
     def __init__(
         self,
         num_node_features: int,
-        hidden_channels: int = 64,
-        num_layers: int = 3,
-        heads: int = 4,
-        dropout: float = 0.2,
-        learning_rate: float = 0.001,
-        classifier_hidden_dim: int = 128,
+        model_config: ModelConfig,
+        training_config: TrainingConfig,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
-        self.learning_rate = learning_rate
-        self.num_layers = num_layers
-        self.dropout = dropout
+        self.learning_rate = training_config.lr
+        self.num_layers = model_config.num_layers
+        self.dropout = model_config.dropout
+        self.hidden_channels = model_config.hidden_channels
+        self.num_layers = model_config.num_layers
+        self.classifier_hidden_dim = model_config.classifier_hidden_dim
+        self.heads = model_config.heads
         self.convs = torch.nn.ModuleList()
         self.batch_norms = torch.nn.ModuleList()
 
         # First GAT layer
         self.convs.append(
             GATConv(
-                num_node_features, hidden_channels, heads=heads, dropout=self.dropout
+                num_node_features,
+                self.hidden_channels,
+                heads=self.heads,
+                dropout=self.dropout,
             ),
         )
-        self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels * heads))
+        self.batch_norms.append(torch.nn.BatchNorm1d(self.hidden_channels * self.heads))
 
         # Hidden GAT layers
-        for _ in range(num_layers - 2):
+        for _ in range(self.num_layers - 2):
             self.convs.append(
                 GATConv(
-                    hidden_channels * heads,
-                    hidden_channels,
-                    heads=heads,
+                    self.hidden_channels * self.heads,
+                    self.hidden_channels,
+                    heads=self.heads,
                     dropout=self.dropout,
                 ),
             )
-            self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels * heads))
+            self.batch_norms.append(
+                torch.nn.BatchNorm1d(self.hidden_channels * self.heads)
+            )
 
         # Last GAT layer
         self.convs.append(
             GATConv(
-                hidden_channels * heads, hidden_channels, heads=1, dropout=self.dropout
+                self.hidden_channels * self.heads,
+                self.hidden_channels,
+                heads=1,
+                dropout=self.dropout,
             ),
         )
-        self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.batch_norms.append(torch.nn.BatchNorm1d(self.hidden_channels))
 
         # Output layer for binary classification (R/S)
         self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(hidden_channels, classifier_hidden_dim),
-            torch.nn.BatchNorm1d(classifier_hidden_dim),
+            torch.nn.Linear(self.hidden_channels, self.classifier_hidden_dim),
+            torch.nn.BatchNorm1d(self.classifier_hidden_dim),
             torch.nn.ReLU(),
-            torch.nn.Dropout(dropout),
-            torch.nn.Linear(classifier_hidden_dim, classifier_hidden_dim // 2),
-            torch.nn.BatchNorm1d(classifier_hidden_dim // 2),
+            torch.nn.Dropout(self.dropout),
+            torch.nn.Linear(self.classifier_hidden_dim, self.classifier_hidden_dim // 2),
+            torch.nn.BatchNorm1d(self.classifier_hidden_dim // 2),
             torch.nn.ReLU(),
-            torch.nn.Dropout(dropout),
-            torch.nn.Linear(classifier_hidden_dim // 2, 2),
+            torch.nn.Dropout(self.dropout),
+            torch.nn.Linear(self.classifier_hidden_dim // 2, 2),
         )
 
     def forward(self, data: Data) -> torch.Tensor:
