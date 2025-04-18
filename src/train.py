@@ -30,6 +30,7 @@ def main() -> None:
         num_node_features=datamodule.num_node_features,
         hidden_channels=config.model.hidden_channels,
         num_layers=config.model.num_layers,
+        classifier_hidden_dim=config.model.classifier_hidden_dim,
         dropout=config.model.dropout,
         learning_rate=config.training.lr,
     )

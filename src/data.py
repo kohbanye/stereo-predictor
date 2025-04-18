@@ -25,14 +25,23 @@ class MoleculeDataset(Dataset):
         if Path(self.processed_file).exists():
             print(f"Loading processed SDF file from {self.processed_file}")
             with torch.serialization.safe_globals([Chem.Mol]):
-                return cast(list[Chem.Mol], torch.load(self.processed_file))
+                mols = cast(list[Chem.Mol], torch.load(self.processed_file))
+                print(f"Loaded {len(mols)} molecules from {self.processed_file}")
+                return mols
 
         molecules = []
         supplier = Chem.SDMolSupplier(self.sdf_file)
         for mol in tqdm(supplier, desc="Processing SDF file"):
-            if mol is not None:
+            if mol is None:
+                continue
+            # keep only molecules with chiral centers
+            chiral_centers = self.get_chiral_centers(mol)
+            if len(chiral_centers) > 0:
                 molecules.append(mol)
 
+        print(
+            f"Found {len(molecules)} molecules with chiral centers out of {len(supplier)} total molecules"
+        )
         with torch.serialization.safe_globals([Chem.Mol]):
             torch.save(molecules, self.processed_file)
         return molecules
